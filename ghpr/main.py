@@ -12,9 +12,11 @@ parser = argparse.ArgumentParser(description='ghpr')
 parser.add_argument('--user', help='Username')
 parser.add_argument('--org', help='Orgnization')
 
-period = parser.add_subparsers()
-period_monthly = period.add_parser('monthly', help='List monthly pull requests')
-period_weekly = period.add_parser('weekly', help='List weekly pull requests')
+sub = parser.add_subparsers()
+period_monthly = sub.add_parser('monthly', help='List monthly pull requests')
+period_weekly = sub.add_parser('weekly', help='List weekly pull requests')
+period_daily = sub.add_parser('daily', help='List daily pull requests')
+review_pull_request = sub.add_parser('pr', help='List review pull requests')
 
 
 def list_org_repos(org, auth):
@@ -23,6 +25,36 @@ def list_org_repos(org, auth):
     data = resp.json()
     return [r['name'] for r in data]
 
+
+def list_review_pull_requests(org, auth):
+    # url = "https://api.github.com/repos/{}/{}/pulls".format(owner, repo)
+    # params = {
+    #     'filter': 'assigned',
+    #     'state': 'all',
+    #     'sort': 'updated',
+    #     'since': since
+    # }
+    url = "https://api.github.com/orgs/{}/issues".format(org)
+    params = {
+        'filter': 'all',
+        'state': 'open',
+        'sort': 'updated',
+        'labels': 'REVIEW',
+    }
+    resp = requests.get(url, params=params, auth=auth)
+    data = resp.json()
+    pull_requests =  [issue for issue in data if 'pull_request' in issue]
+
+    repos = defaultdict(list)
+
+    for pr in pull_requests:
+        repos[pr['repository']['full_name']].append(pr)
+
+    for repo, prs in repos.items():
+        print()
+        print("## ", repo)
+        for pr in prs:
+            print("- [{} #{}]({})".format(pr['title'], pr['number'], pr['html_url']))
 
 def list_my_pull_requests(org, auth, since):
     url = "https://api.github.com/orgs/{}/issues".format(org)
@@ -68,9 +100,27 @@ def list_weekly(args):
     list_my_pull_requests(org, auth, since)
 
 
+def list_daily(args):
+    org = args.org
+    auth = HTTPBasicAuth(args.user, GITHUB_ACCESS_TOKEN)
+
+    today = datetime.today()
+    since = today.date().isoformat()  # FIXME JST -> UTC
+
+    list_my_pull_requests(org, auth, since)
+
+
+def list_pull_requests(args):
+    org = args.org
+    auth = HTTPBasicAuth(args.user, GITHUB_ACCESS_TOKEN)
+    list_review_pull_requests(org, auth)
+
+
 def main():
     period_monthly.set_defaults(func=list_monthly)
     period_weekly.set_defaults(func=list_weekly)
+    period_daily.set_defaults(func=list_daily)
+    review_pull_request.set_defaults(func=list_pull_requests)
     args = parser.parse_args()
     args.func(args)
 
