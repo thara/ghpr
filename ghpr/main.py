@@ -43,11 +43,14 @@ def list_review_pull_requests(org, auth):
     }
     resp = requests.get(url, params=params, auth=auth)
     data = resp.json()
-    pull_requests =  [issue for issue in data if 'pull_request' in issue]
+    pull_requests =  [issue for issue in data if 'pull_request' in issue and 'LGTM:2+' not in map(lambda x: x['name'], issue['labels'])]
 
     repos = defaultdict(list)
 
     for pr in pull_requests:
+        # if pr['labels'] in 'LGTM:2+':
+        #     continue
+        #and list(map(lambda x: x['name'], issue['lables'])) not in 'LGTM:2+'
         repos[pr['repository']['full_name']].append(pr)
 
     for repo, prs in repos.items():
